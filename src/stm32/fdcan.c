@@ -22,6 +22,10 @@
  DECL_CONSTANT_STR("RESERVE_PINS_CAN", "PA11,PA12");
  #define GPIO_Rx GPIO('A', 11)
  #define GPIO_Tx GPIO('A', 12)
+#elif CONFIG_STM32_CANBUS_PA11_PB9
+ DECL_CONSTANT_STR("RESERVE_PINS_CAN", "PA11,PB9");
+ #define GPIO_Rx GPIO('A', 11)
+ #define GPIO_Tx GPIO('B', 9)
 #elif CONFIG_STM32_CANBUS_PB8_PB9
  DECL_CONSTANT_STR("RESERVE_PINS_CAN", "PB8,PB9");
  #define GPIO_Rx GPIO('B', 8)
@@ -42,21 +46,37 @@
  DECL_CONSTANT_STR("RESERVE_PINS_CAN", "PC2,PC3");
  #define GPIO_Rx GPIO('C', 2)
  #define GPIO_Tx GPIO('C', 3)
+#elif CONFIG_STM32_CANBUS_PB5_PB6
+ DECL_CONSTANT_STR("RESERVE_PINS_CAN", "PB5,PB6");
+ #define GPIO_Rx GPIO('B', 5)
+ #define GPIO_Tx GPIO('B', 6)
+#elif CONFIG_STM32_CANBUS_PB12_PB13
+ DECL_CONSTANT_STR("RESERVE_PINS_CAN", "PB12,PB13");
+ #define GPIO_Rx GPIO('B', 12)
+ #define GPIO_Tx GPIO('B', 13)
 #endif
 
-#if !(CONFIG_STM32_CANBUS_PB0_PB1 || CONFIG_STM32_CANBUS_PC2_PC3)
+#if !(CONFIG_STM32_CANBUS_PB0_PB1 || CONFIG_STM32_CANBUS_PC2_PC3 \
+     || CONFIG_STM32_CANBUS_PB5_PB6 ||CONFIG_STM32_CANBUS_PB12_PB13)
  #define SOC_CAN FDCAN1
  #define MSG_RAM (((struct fdcan_ram_layout*)SRAMCAN_BASE)->fdcan1)
+ #if CONFIG_MACH_STM32H7 || CONFIG_MACH_STM32G4
+  #define CAN_IT0_IRQn  FDCAN1_IT0_IRQn
+ #endif
 #else
  #define SOC_CAN FDCAN2
  #define MSG_RAM (((struct fdcan_ram_layout*)SRAMCAN_BASE)->fdcan2)
+ #if CONFIG_MACH_STM32H7 || CONFIG_MACH_STM32G4
+  #define CAN_IT0_IRQn  FDCAN2_IT0_IRQn
+ #endif
 #endif
 
 #if CONFIG_MACH_STM32G0
  #define CAN_IT0_IRQn  TIM16_FDCAN_IT0_IRQn
  #define CAN_FUNCTION  GPIO_FUNCTION(3) // Alternative function mapping number
-#elif CONFIG_MACH_STM32H7
- #define CAN_IT0_IRQn  FDCAN1_IT0_IRQn
+#endif
+
+#if CONFIG_MACH_STM32H7 || CONFIG_MACH_STM32G4
  #define CAN_FUNCTION  GPIO_FUNCTION(9) // Alternative function mapping number
 #endif
 
@@ -97,7 +117,7 @@ struct fdcan_ram_layout {
 
 // Transmit a packet
 int
-canbus_send(struct canbus_msg *msg)
+canhw_send(struct canbus_msg *msg)
 {
     uint32_t txfqs = SOC_CAN->TXFQS;
     if (txfqs & FDCAN_TXFQS_TFQF)
@@ -132,7 +152,7 @@ can_filter(uint32_t index, uint32_t id)
 
 // Setup the receive packet filter
 void
-canbus_set_filter(uint32_t id)
+canhw_set_filter(uint32_t id)
 {
     if (!CONFIG_CANBUS_FILTER)
         return;
@@ -149,7 +169,7 @@ canbus_set_filter(uint32_t id)
     can_filter(1, id);
     can_filter(2, id + 1);
 
-#if CONFIG_MACH_STM32G0
+#if CONFIG_MACH_STM32G0 || CONFIG_MACH_STM32G4
     SOC_CAN->RXGFC = ((id ? 3 : 1) << FDCAN_RXGFC_LSS_Pos
                       | 0x02 << FDCAN_RXGFC_ANFS_Pos);
 #elif CONFIG_MACH_STM32H7
@@ -295,7 +315,7 @@ can_init(void)
     SOC_CAN->CCCR &= ~FDCAN_CCCR_INIT;
 
     /*##-2- Configure the CAN Filter #######################################*/
-    canbus_set_filter(0);
+    canhw_set_filter(0);
 
     /*##-3- Configure Interrupts #################################*/
     armcm_enable_irq(CAN_IRQHandler, CAN_IT0_IRQn, 1);
